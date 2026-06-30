@@ -1,13 +1,13 @@
-# laulamanapps/documentsigner-validsign
+# ValidSign implementation of the document signer SDK.
 
 ValidSign (OneSpan Sign) implementation of the
-[`SignatureProvider`](../sdk/src/Provider/SignatureProvider.php) contract from
-[`laulamanapps/documentsigner-sdk`](../sdk).
+[`SignatureProvider`](https://github.com/LauLamanApps/document-signer-sdk/blob/main/src/Provider/SignatureProvider.php) contract from
+[`laulamanapps/document-signer-sdk`](https://github.com/LauLamanApps/document-signer-sdk).
 
 ## Install
 
 ```bash
-composer require laulamanapps/documentsigner-validsign
+composer require laulamanapps/document-signer-validsign
 ```
 
 ## Quick start
@@ -75,7 +75,7 @@ The full provider guide — credentials, endpoint mapping, status mapping,
 sequential signing, injecting a custom HTTP client, troubleshooting — lives in
 the SDK's docs:
 
-- [ValidSign provider guide](../sdk/docs/providers/validsign.md)
-- [Placeholder syntax](../sdk/docs/placeholders.md)
-- [PDF rendering](../sdk/docs/pdf-rendering.md)
-- [Architecture overview](../sdk/docs/architecture.md)
+- [ValidSign provider guide](https://github.com/LauLamanApps/document-signer-sdk/blob/main/docs/providers/validsign.md)
+- [Placeholder syntax](https://github.com/LauLamanApps/document-signer-sdk/blob/main/docs/placeholders.md)
+- [PDF rendering](https://github.com/LauLamanApps/document-signer-sdk/blob/main/docs/pdf-rendering.md)
+- [Architecture overview](https://github.com/LauLamanApps/document-signer-sdk/blob/main/docs/architecture.md)
