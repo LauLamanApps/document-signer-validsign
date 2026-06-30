@@ -1,0 +1,25 @@
+{
+    "name": "laulamanapps/document-signer-validsign",
+    "description": "ValidSign implementation of the document signer SDK.",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.5",
+        "laulamanapps/document-signer-sdk": "^1.0",
+        "guzzlehttp/guzzle": "^7.8"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "LauLamanApps\\DocumentSigner\\ValidSign\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "LauLamanApps\\DocumentSigner\\ValidSign\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}
