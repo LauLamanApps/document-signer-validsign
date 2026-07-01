@@ -277,7 +277,7 @@ final class ValidSignProviderTest extends TestCase
     private function fakePdfRenderer(): PdfRenderer
     {
         return new class implements PdfRenderer {
-            public function render(string $html): string
+            public function render(string $html, ?\LauLamanApps\DocumentSigner\Sdk\Pdf\PageDecoration $decoration = null): string
             {
                 return '%PDF-FAKE' . $html;
             }
