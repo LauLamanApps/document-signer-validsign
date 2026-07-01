@@ -50,7 +50,9 @@ final class ValidSignProviderTest extends TestCase
         $body = (string) $request->getBody();
         self::assertStringContainsString('name="payload"', $body);
         self::assertStringContainsString('name="file"; filename="NDA.pdf"', $body);
-        self::assertStringContainsString('%PDF-FAKE', $body, 'rendered PDF bytes are uploaded');
+        // Rendered PDF carries the ValidSign text-tag literal. Server-side detection
+        // scans the extracted text for `{{esl…}}` sequences; we assert on that here.
+        self::assertStringContainsString('{{esl_sig:Signer1:Signature:size(200,50)}}', $body);
 
         $payload = $this->extractPayload($body);
         self::assertSame('PACKAGE', $payload['type']);
@@ -60,10 +62,9 @@ final class ValidSignProviderTest extends TestCase
         self::assertSame('Jane', $payload['roles'][0]['signers'][0]['firstName']);
         self::assertSame('Doe', $payload['roles'][0]['signers'][0]['lastName']);
         self::assertTrue($payload['documents'][0]['extract']);
-        self::assertSame(
-            '[[VS:signature:s1:sig]]',
-            $payload['documents'][0]['approvals'][0]['fields'][0]['extractAnchor']['text'],
-        );
+        // With text-tags the API payload no longer needs to describe approvals/fields —
+        // ValidSign discovers them from the PDF automatically.
+        self::assertArrayNotHasKey('approvals', $payload['documents'][0]);
     }
 
     #[Test]

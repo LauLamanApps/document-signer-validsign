@@ -8,7 +8,6 @@ use LauLamanApps\DocumentSigner\Sdk\Document\Document;
 use LauLamanApps\DocumentSigner\Sdk\Envelope\Envelope;
 use LauLamanApps\DocumentSigner\Sdk\Envelope\EnvelopeStatus;
 use LauLamanApps\DocumentSigner\Sdk\Exception\ProviderException;
-use LauLamanApps\DocumentSigner\Sdk\Field\FieldType;
 use LauLamanApps\DocumentSigner\Sdk\Pdf\BrowsershotPdfRenderer;
 use LauLamanApps\DocumentSigner\Sdk\Pdf\PageDecoration;
 use LauLamanApps\DocumentSigner\Sdk\Pdf\PdfRenderer;
@@ -52,8 +51,10 @@ final class ValidSignProvider implements SignatureProvider
         $apiDocuments = [];
         $docIndex = 0;
 
+        $replacer = $this->replacer->withSignerRoleMap($this->buildSignerRoleMap($envelope));
+
         foreach ($envelope->documents as $document) {
-            $prepared = $this->replacer->replace($document->html, $this->parser->parse($document->html));
+            $prepared = $replacer->replace($document->html, $this->parser->parse($document->html));
             $this->assertFieldsResolvable($envelope, $document, $prepared->fields);
 
             $pdf = $this->pdfRenderer->render($prepared->html, new PageDecoration(
@@ -67,12 +68,14 @@ final class ValidSignProvider implements SignatureProvider
                 'contents' => $pdf,
             ];
 
+            // No `approvals` block — ValidSign auto-detects the `{{esl:…}}` text-tags in the PDF
+            // during package creation and builds the approval/field graph server-side. See:
+            // https://validsign.zendesk.com/hc/nl/articles/360037747091-Text-tags-gebruiken-binnen-documenten
             $apiDocuments[] = [
-                'id'        => $document->id,
-                'name'      => $document->name,
-                'index'     => $docIndex++,
-                'extract'   => true,
-                'approvals' => $this->buildApprovals($document->id, $prepared->fields),
+                'id'      => $document->id,
+                'name'    => $document->name,
+                'index'   => $docIndex++,
+                'extract' => true,
             ];
         }
 
@@ -186,68 +189,21 @@ final class ValidSignProvider implements SignatureProvider
     }
 
     /**
-     * @param PreparedField[] $fields
-     * @return list<array<string, mixed>>
+     * ValidSign text-tags reference signers positionally as `Signer1`, `Signer2`, …
+     * in the order they appear in `roles[]`. Build a map from the SDK's arbitrary
+     * signer keys to these positional tokens so the placeholder replacer can emit
+     * the right role in each tag.
+     *
+     * @return array<string, string>
      */
-    private function buildApprovals(string $documentId, array $fields): array
+    private function buildSignerRoleMap(Envelope $envelope): array
     {
-        $byRole = [];
-        foreach ($fields as $field) {
-            $byRole[$field->signerKey][] = $field;
+        $map = [];
+        $i = 1;
+        foreach ($envelope->signers as $signer) {
+            $map[$signer->key] = 'Signer' . $i++;
         }
-
-        $approvals = [];
-        $approvalIndex = 0;
-        foreach ($byRole as $signerKey => $signerFields) {
-            $approvals[] = [
-                'id'     => sprintf('appr_%s_%s_%d', $documentId, $signerKey, $approvalIndex++),
-                'role'   => $signerKey,
-                'fields' => array_map(
-                    fn (PreparedField $f) => $this->mapField($f),
-                    $signerFields,
-                ),
-            ];
-        }
-
-        return $approvals;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function mapField(PreparedField $field): array
-    {
-        [$validSignType, $subtype, $extra] = match ($field->type) {
-            FieldType::Signature => ['SIGNATURE', 'FULLNAME', []],
-            FieldType::Initials  => ['SIGNATURE', 'INITIALS', []],
-            FieldType::Text      => ['INPUT', 'TEXTFIELD', []],
-            FieldType::Date      => ['INPUT', 'LABEL', ['binding' => '{approval.signed}']],
-            FieldType::Checkbox  => ['INPUT', 'CHECKBOX', []],
-        };
-
-        [$width, $height] = match ($field->type) {
-            FieldType::Signature, FieldType::Initials => [150, 50],
-            FieldType::Date                            => [120, 20],
-            FieldType::Text                            => [180, 20],
-            FieldType::Checkbox                        => [20, 20],
-        };
-
-        return [
-            'name'    => $field->fieldName,
-            'type'    => $validSignType,
-            'subtype' => $subtype,
-            'extract' => true,
-            'extractAnchor' => [
-                'text'           => $field->anchorString,
-                'index'          => 0,
-                'anchorPoint'    => 'TOPLEFT',
-                'characterIndex' => 0,
-                'leftOffset'     => 0,
-                'topOffset'      => 0,
-                'width'          => $width,
-                'height'         => $height,
-            ],
-        ] + $extra;
+        return $map;
     }
 
     /**
