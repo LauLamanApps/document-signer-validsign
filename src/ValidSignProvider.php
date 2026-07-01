@@ -14,6 +14,7 @@ use LauLamanApps\DocumentSigner\Sdk\Pdf\PdfRenderer;
 use LauLamanApps\DocumentSigner\Sdk\Placeholder\PlaceholderParser;
 use LauLamanApps\DocumentSigner\Sdk\Placeholder\PreparedField;
 use LauLamanApps\DocumentSigner\Sdk\Provider\EnvelopeReceipt;
+use LauLamanApps\DocumentSigner\Sdk\Provider\FieldValue;
 use LauLamanApps\DocumentSigner\Sdk\Provider\SignatureProvider;
 use LauLamanApps\DocumentSigner\Sdk\Signer\Signer;
 use LauLamanApps\DocumentSigner\Sdk\Signer\SigningOrder;
@@ -152,6 +153,25 @@ final class ValidSignProvider implements SignatureProvider
             prefix: 'validsign-evidence-',
             extension: 'pdf',
         );
+    }
+
+    public function getFieldValues(string $providerEnvelopeId): array
+    {
+        $summary = $this->client->getFieldSummary($providerEnvelopeId);
+
+        $out = [];
+        foreach ($summary as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $out[] = new FieldValue(
+                documentId: is_string($entry['documentId'] ?? null) ? $entry['documentId'] : '',
+                signerKey:  is_string($entry['signerId']   ?? null) ? $entry['signerId']   : '',
+                fieldName:  is_string($entry['fieldName']  ?? null) ? $entry['fieldName']  : '',
+                value:      is_string($entry['fieldValue'] ?? null) ? $entry['fieldValue'] : null,
+            );
+        }
+        return $out;
     }
 
     public function cancel(string $providerEnvelopeId, ?string $reason = null): void

@@ -44,7 +44,7 @@ final class ValidSignPlaceholderReplacer extends AbstractAnchorPlaceholderReplac
         $role = $this->signerRoleMap[$placeholder->signerKey] ?? 'Signer1';
         $tagType = self::tagType($placeholder->type);
         [$w, $h] = self::defaultSize($placeholder->type);
-        $prefix = self::needsRequiredMarker($placeholder->type) ? '*' : '';
+        $prefix = self::prefixFor($placeholder->type, $placeholder->required);
 
         return sprintf(
             '{{%sesl_%s:%s:%s:size(%d,%d)}}',
@@ -97,12 +97,18 @@ final class ValidSignPlaceholderReplacer extends AbstractAnchorPlaceholderReplac
     }
 
     /**
-     * Signature and initials are implicitly required per the ValidSign docs;
-     * SigningDate is auto-populated. Everything else needs the `*` prefix
-     * to be enforced as required on the signer.
+     * Map (type, required) to the ValidSign tag prefix:
+     *  - Signature / Initials default to required — no prefix. `?esl:` marks them optional.
+     *  - Text / Checkbox default to optional — `*esl:` marks them required.
+     *  - SigningDate is auto-populated by ValidSign so the required flag is a no-op.
      */
-    private static function needsRequiredMarker(FieldType $type): bool
+    private static function prefixFor(FieldType $type, bool $required): string
     {
-        return $type === FieldType::Text || $type === FieldType::Checkbox;
+        return match (true) {
+            $type === FieldType::Date                                                            => '',
+            ($type === FieldType::Signature || $type === FieldType::Initials) && !$required      => '?',
+            ($type === FieldType::Text || $type === FieldType::Checkbox) && $required            => '*',
+            default                                                                              => '',
+        };
     }
 }

@@ -82,4 +82,46 @@ final class ValidSignPlaceholderReplacerTest extends TestCase
         self::assertStringNotContainsString('&#123;', $prepared->html);
         self::assertStringNotContainsString('&#125;', $prepared->html);
     }
+
+    #[Test]
+    public function optional_signatures_use_the_question_mark_prefix(): void
+    {
+        $html = '<p>{[?signature:s1:sig]}{[?initials:s1:i]}</p>';
+        $parsed = (new PlaceholderParser())->parse($html);
+
+        $prepared = (new ValidSignPlaceholderReplacer())
+            ->withSignerRoleMap(['s1' => 'Signer1'])
+            ->replace($html, $parsed);
+
+        self::assertSame('{{?esl_sig:Signer1:Signature:size(200,50)}}', $prepared->fields[0]->anchorString);
+        self::assertSame('{{?esl_i:Signer1:initials:size(100,30)}}', $prepared->fields[1]->anchorString);
+    }
+
+    #[Test]
+    public function optional_text_and_checkbox_drop_the_required_asterisk(): void
+    {
+        $html = '<p>{[?text:s1:notes]}{[?checkbox:s1:opt_in]}</p>';
+        $parsed = (new PlaceholderParser())->parse($html);
+
+        $prepared = (new ValidSignPlaceholderReplacer())
+            ->withSignerRoleMap(['s1' => 'Signer1'])
+            ->replace($html, $parsed);
+
+        self::assertSame('{{esl_notes:Signer1:TextField:size(200,20)}}', $prepared->fields[0]->anchorString);
+        self::assertSame('{{esl_opt_in:Signer1:Checkbox:size(20,20)}}', $prepared->fields[1]->anchorString);
+    }
+
+    #[Test]
+    public function date_ignores_the_required_flag_because_it_is_auto_populated(): void
+    {
+        $html = '<p>{[?date:s1:d]}{[date:s1:d2]}</p>';
+        $parsed = (new PlaceholderParser())->parse($html);
+
+        $prepared = (new ValidSignPlaceholderReplacer())
+            ->withSignerRoleMap(['s1' => 'Signer1'])
+            ->replace($html, $parsed);
+
+        self::assertStringStartsWith('{{esl_', $prepared->fields[0]->anchorString, 'no ? prefix for date');
+        self::assertStringStartsWith('{{esl_', $prepared->fields[1]->anchorString, 'no * prefix for date');
+    }
 }

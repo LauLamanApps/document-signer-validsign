@@ -81,6 +81,29 @@ final class ValidSignClient
         return $this->requestRaw('GET', 'packages/' . rawurlencode($packageId) . '/evidence/summary');
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getFieldSummary(string $packageId): array
+    {
+        $body = $this->requestRaw('GET', 'packages/' . rawurlencode($packageId) . '/fieldSummary');
+        if ($body === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new ProviderException(
+                'ValidSign returned non-JSON response for GET /packages/{id}/fieldSummary.',
+                providerBody: $body,
+                previous: $e,
+            );
+        }
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
     public function deletePackage(string $packageId): void
     {
         $this->request('DELETE', 'packages/' . rawurlencode($packageId));

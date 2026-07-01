@@ -161,6 +161,50 @@ final class ValidSignProviderTest extends TestCase
     }
 
     #[Test]
+    public function get_field_values_returns_the_filled_form_data(): void
+    {
+        [$provider, $history] = $this->buildProvider([
+            new Response(200, [], json_encode([
+                [
+                    'signerId'   => 'counterparty',
+                    'documentId' => 'nda',
+                    'fieldId'    => 'fld-1',
+                    'fieldName'  => 'iban',
+                    'fieldValue' => 'NL91ABNA0417164300',
+                ],
+                [
+                    'signerId'   => 'counterparty',
+                    'documentId' => 'nda',
+                    'fieldId'    => 'fld-2',
+                    'fieldName'  => 'fullname',
+                    'fieldValue' => 'Jane Doe',
+                ],
+                [
+                    // Optional field left blank
+                    'signerId'   => 'counterparty',
+                    'documentId' => 'nda',
+                    'fieldId'    => 'fld-3',
+                    'fieldName'  => 'phone',
+                    // no fieldValue → null in DTO
+                ],
+            ])),
+        ]);
+
+        $values = $provider->getFieldValues('pkg-42');
+
+        self::assertStringContainsString(
+            'packages/pkg-42/fieldSummary',
+            (string) $history[0]['request']->getUri(),
+        );
+        self::assertCount(3, $values);
+        self::assertSame('NL91ABNA0417164300', $values[0]->value);
+        self::assertSame('iban', $values[0]->fieldName);
+        self::assertSame('nda', $values[0]->documentId);
+        self::assertSame('counterparty', $values[0]->signerKey);
+        self::assertNull($values[2]->value, 'optional field left blank comes back as null');
+    }
+
+    #[Test]
     public function send_rejects_placeholder_referencing_unknown_signer(): void
     {
         $envelope = new Envelope(
