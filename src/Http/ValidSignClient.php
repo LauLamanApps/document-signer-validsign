@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LauLamanApps\DocumentSigner\ValidSign\Http;
 
 use LauLamanApps\DocumentSigner\Sdk\Exception\ProviderException;
+use LauLamanApps\DocumentSigner\Sdk\Exception\ProviderTransientException;
 use LauLamanApps\DocumentSigner\ValidSign\ValidSignConfig;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
@@ -75,6 +76,11 @@ final class ValidSignClient
         return $this->requestRaw('GET', 'packages/' . rawurlencode($packageId) . '/documents/zip');
     }
 
+    public function downloadEvidenceSummary(string $packageId): string
+    {
+        return $this->requestRaw('GET', 'packages/' . rawurlencode($packageId) . '/evidence/summary');
+    }
+
     public function deletePackage(string $packageId): void
     {
         $this->request('DELETE', 'packages/' . rawurlencode($packageId));
@@ -112,20 +118,92 @@ final class ValidSignClient
         try {
             $response = $this->http->request($method, $path, $options);
         } catch (RequestException $e) {
-            $response = $e->getResponse();
-            throw new ProviderException(
-                "ValidSign {$method} {$path} failed: " . $e->getMessage(),
-                httpStatus: $response?->getStatusCode(),
-                providerBody: $response?->getBody()?->getContents(),
-                previous: $e,
-            );
+            throw $this->translateHttpError($method, $path, $e);
         } catch (GuzzleException $e) {
-            throw new ProviderException(
-                "ValidSign {$method} {$path} failed: " . $e->getMessage(),
+            throw new ProviderTransientException(
+                message: sprintf('ValidSign %s /%s transport error: %s', $method, ltrim($path, '/'), $e->getMessage()),
                 previous: $e,
             );
         }
 
         return (string) $response->getBody();
+    }
+
+    private function translateHttpError(string $method, string $path, RequestException $e): ProviderException
+    {
+        $response = $e->getResponse();
+        $status = $response?->getStatusCode();
+        $body = $response?->getBody()?->getContents();
+
+        [$providerCode, $providerMessage, $envelopeId] = $this->parseErrorPayload($body);
+
+        if ($status === null) {
+            // No response received — transport-level failure Guzzle wrapped in RequestException.
+            return new ProviderTransientException(
+                message: sprintf('ValidSign %s /%s transport error: %s', $method, ltrim($path, '/'), $e->getMessage()),
+                providerBody: $body,
+                previous: $e,
+                providerEnvelopeId: $envelopeId,
+            );
+        }
+
+        return ProviderException::fromHttpStatus(
+            providerName: 'ValidSign',
+            method: $method,
+            path: $path,
+            status: $status,
+            providerCode: $providerCode,
+            providerMessage: $providerMessage,
+            providerBody: $body,
+            previous: $e,
+            retryAfterSeconds: $this->parseRetryAfter($response?->getHeaderLine('Retry-After')),
+            providerEnvelopeId: $envelopeId,
+        );
+    }
+
+    /**
+     * ValidSign error responses look like `{ "code": 422, "messageKey": "...", "message": "..." }`;
+     * some (typically post-creation failures) also echo a `packageId`.
+     *
+     * @return array{0: ?string, 1: ?string, 2: ?string} Tuple of (providerCode, providerMessage, providerEnvelopeId).
+     */
+    private function parseErrorPayload(?string $body): array
+    {
+        if (!is_string($body) || $body === '') {
+            return [null, null, null];
+        }
+
+        try {
+            $decoded = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [null, null, null];
+        }
+
+        if (!is_array($decoded)) {
+            return [null, null, null];
+        }
+
+        $code = is_string($decoded['messageKey'] ?? null) ? $decoded['messageKey'] : null;
+        $message = is_string($decoded['message'] ?? null) ? $decoded['message'] : null;
+        $envelopeId = is_string($decoded['packageId'] ?? null) && $decoded['packageId'] !== ''
+            ? $decoded['packageId']
+            : (is_string($decoded['id'] ?? null) && $decoded['id'] !== '' ? $decoded['id'] : null);
+
+        return [$code, $message, $envelopeId];
+    }
+
+    private function parseRetryAfter(?string $header): ?int
+    {
+        if ($header === null || $header === '') {
+            return null;
+        }
+        if (ctype_digit($header)) {
+            return (int) $header;
+        }
+        $timestamp = strtotime($header);
+        if ($timestamp === false) {
+            return null;
+        }
+        return max(0, $timestamp - time());
     }
 }

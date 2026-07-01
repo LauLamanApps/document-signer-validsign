@@ -52,6 +52,23 @@ For every document in the envelope, this package:
 5. Returns an `EnvelopeReceipt` containing the ValidSign package id and a
    normalised `EnvelopeStatus`.
 
+## Downloads
+
+Both `downloadSigned()` and `downloadAudit()` write to a temp file and hand you
+an `\SplFileInfo` — check the extension:
+
+```php
+$archive = $provider->downloadSigned($packageId);
+// $archive->getExtension() === 'zip'
+// A ZIP with one signed PDF per document in the package (endpoint: /packages/{id}/documents/zip)
+
+$audit = $provider->downloadAudit($packageId);
+// $audit->getExtension() === 'pdf'
+// The Evidence Summary Report (endpoint: /packages/{id}/evidence/summary)
+```
+
+Callers own the file lifecycle — copy or `@unlink()` when done.
+
 ## Field mapping
 
 | SDK `FieldType` | ValidSign `type` / `subtype` |

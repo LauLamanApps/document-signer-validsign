@@ -80,6 +80,86 @@ final class ValidSignProviderTest extends TestCase
     }
 
     #[Test]
+    public function send_throws_a_validation_exception_with_the_provider_message_for_422_responses(): void
+    {
+        [$provider] = $this->buildProvider([
+            new Response(422, [], json_encode([
+                'code'       => 422,
+                'messageKey' => 'error.validation.invalidEmail',
+                'message'    => 'The email field must be a valid email',
+            ])),
+        ]);
+
+        try {
+            $provider->send($this->envelopeWithOneSigner());
+            self::fail('Expected ProviderValidationException.');
+        } catch (\LauLamanApps\DocumentSigner\Sdk\Exception\ProviderValidationException $e) {
+            self::assertSame(422, $e->httpStatus);
+            self::assertSame('error.validation.invalidEmail', $e->providerCode);
+            self::assertSame('The email field must be a valid email', $e->providerMessage);
+            self::assertStringContainsString('ValidSign POST /packages', $e->getMessage());
+            self::assertStringContainsString('[422 error.validation.invalidEmail]', $e->getMessage());
+            self::assertStringContainsString('The email field must be a valid email', $e->getMessage());
+            self::assertFalse($e->isRetryable());
+        }
+    }
+
+    #[Test]
+    public function send_carries_the_package_id_when_the_error_body_echoes_one(): void
+    {
+        [$provider] = $this->buildProvider([
+            new Response(409, [], json_encode([
+                'code'       => 409,
+                'messageKey' => 'error.package.alreadySent',
+                'message'    => 'Package already sent',
+                'packageId'  => 'pkg-echo-999',
+            ])),
+        ]);
+
+        try {
+            $provider->send($this->envelopeWithOneSigner());
+            self::fail('Expected ProviderValidationException.');
+        } catch (\LauLamanApps\DocumentSigner\Sdk\Exception\ProviderValidationException $e) {
+            self::assertSame('pkg-echo-999', $e->providerEnvelopeId);
+        }
+    }
+
+    #[Test]
+    public function send_throws_a_transient_exception_for_5xx_responses(): void
+    {
+        [$provider] = $this->buildProvider([
+            new Response(503, [], 'Service Unavailable'),
+        ]);
+
+        try {
+            $provider->send($this->envelopeWithOneSigner());
+            self::fail('Expected ProviderTransientException.');
+        } catch (\LauLamanApps\DocumentSigner\Sdk\Exception\ProviderTransientException $e) {
+            self::assertSame(503, $e->httpStatus);
+            self::assertTrue($e->isRetryable());
+        }
+    }
+
+    #[Test]
+    public function send_throws_a_rate_limit_exception_that_carries_retry_after(): void
+    {
+        [$provider] = $this->buildProvider([
+            new Response(429, ['Retry-After' => '13'], json_encode([
+                'code' => 429, 'messageKey' => 'error.throttled', 'message' => 'Slow down',
+            ])),
+        ]);
+
+        try {
+            $provider->send($this->envelopeWithOneSigner());
+            self::fail('Expected ProviderRateLimitException.');
+        } catch (\LauLamanApps\DocumentSigner\Sdk\Exception\ProviderRateLimitException $e) {
+            self::assertSame(429, $e->httpStatus);
+            self::assertSame(13, $e->retryAfterSeconds);
+            self::assertTrue($e->isRetryable());
+        }
+    }
+
+    #[Test]
     public function send_rejects_placeholder_referencing_unknown_signer(): void
     {
         $envelope = new Envelope(
@@ -112,6 +192,48 @@ final class ValidSignProviderTest extends TestCase
         self::assertSame(EnvelopeStatus::Draft,     $provider->getStatus('p2'));
         self::assertSame(EnvelopeStatus::Expired,   $provider->getStatus('p3'));
         self::assertSame(EnvelopeStatus::Unknown,   $provider->getStatus('p4'));
+    }
+
+    #[Test]
+    public function download_signed_returns_the_zip_file(): void
+    {
+        [$provider, $history] = $this->buildProvider([
+            new Response(200, [], 'PK-FAKE-ZIP-BYTES'),
+        ]);
+
+        $file = $provider->downloadSigned('pkg-42');
+
+        self::assertInstanceOf(\SplFileInfo::class, $file);
+        self::assertSame('zip', $file->getExtension());
+        self::assertSame('PK-FAKE-ZIP-BYTES', file_get_contents($file->getPathname()));
+
+        self::assertCount(1, $history);
+        self::assertStringContainsString(
+            'packages/pkg-42/documents/zip',
+            (string) $history[0]['request']->getUri(),
+        );
+
+        @unlink($file->getPathname());
+    }
+
+    #[Test]
+    public function download_audit_returns_the_evidence_summary_pdf(): void
+    {
+        [$provider, $history] = $this->buildProvider([
+            new Response(200, [], '%PDF-EVIDENCE-SUMMARY'),
+        ]);
+
+        $file = $provider->downloadAudit('pkg-42');
+
+        self::assertSame('pdf', $file->getExtension());
+        self::assertSame('%PDF-EVIDENCE-SUMMARY', file_get_contents($file->getPathname()));
+
+        self::assertStringContainsString(
+            'packages/pkg-42/evidence/summary',
+            (string) $history[0]['request']->getUri(),
+        );
+
+        @unlink($file->getPathname());
     }
 
     /**

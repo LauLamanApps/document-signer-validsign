@@ -17,6 +17,7 @@ use LauLamanApps\DocumentSigner\Sdk\Provider\EnvelopeReceipt;
 use LauLamanApps\DocumentSigner\Sdk\Provider\SignatureProvider;
 use LauLamanApps\DocumentSigner\Sdk\Signer\Signer;
 use LauLamanApps\DocumentSigner\Sdk\Signer\SigningOrder;
+use LauLamanApps\DocumentSigner\Sdk\Support\TempFile;
 use LauLamanApps\DocumentSigner\ValidSign\Http\ValidSignClient;
 use LauLamanApps\DocumentSigner\ValidSign\Placeholder\ValidSignPlaceholderReplacer;
 
@@ -92,13 +93,23 @@ final class ValidSignProvider implements SignatureProvider
             );
         }
 
-        return new EnvelopeReceipt(
-            provider: self::NAME,
-            providerEnvelopeId: $packageId,
-            status: EnvelopeStatus::Sent,
-            signerUrls: [],
-            raw: $response,
-        );
+        try {
+            return new EnvelopeReceipt(
+                provider: self::NAME,
+                providerEnvelopeId: $packageId,
+                status: EnvelopeStatus::Sent,
+                signerUrls: [],
+                raw: $response,
+            );
+        } catch (ProviderException $e) {
+            throw $e->withProviderEnvelopeId($packageId);
+        } catch (\Throwable $e) {
+            throw new ProviderException(
+                message: 'ValidSign package was created but the SDK failed to build the receipt: ' . $e->getMessage(),
+                previous: $e,
+                providerEnvelopeId: $packageId,
+            );
+        }
     }
 
     public function getStatus(string $providerEnvelopeId): EnvelopeStatus
@@ -116,9 +127,22 @@ final class ValidSignProvider implements SignatureProvider
         };
     }
 
-    public function downloadSigned(string $providerEnvelopeId): string
+    public function downloadSigned(string $providerEnvelopeId): \SplFileInfo
     {
-        return $this->client->downloadSignedZip($providerEnvelopeId);
+        return TempFile::fromBytes(
+            bytes: $this->client->downloadSignedZip($providerEnvelopeId),
+            prefix: 'validsign-signed-',
+            extension: 'zip',
+        );
+    }
+
+    public function downloadAudit(string $providerEnvelopeId): \SplFileInfo
+    {
+        return TempFile::fromBytes(
+            bytes: $this->client->downloadEvidenceSummary($providerEnvelopeId),
+            prefix: 'validsign-evidence-',
+            extension: 'pdf',
+        );
     }
 
     public function cancel(string $providerEnvelopeId, ?string $reason = null): void
