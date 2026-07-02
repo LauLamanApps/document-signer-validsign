@@ -299,6 +299,14 @@ final class ValidSignProviderTest extends TestCase
     }
 
     #[Test]
+    public function has_audit_trail_is_true_because_validsign_ships_the_evidence_summary(): void
+    {
+        [$provider] = $this->buildProvider([]);
+
+        self::assertTrue($provider->hasAuditTrail());
+    }
+
+    #[Test]
     public function download_audit_returns_the_evidence_summary_pdf(): void
     {
         [$provider, $history] = $this->buildProvider([

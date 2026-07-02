@@ -155,6 +155,11 @@ final class ValidSignProvider implements SignatureProvider
         );
     }
 
+    public function hasAuditTrail(): bool
+    {
+        return true;
+    }
+
     public function downloadAudit(string $providerEnvelopeId): \SplFileInfo
     {
         return TempFile::fromBytes(
