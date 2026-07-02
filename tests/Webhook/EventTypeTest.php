@@ -19,6 +19,7 @@ final class EventTypeTest extends TestCase
         // string values MUST match ValidSign's callback vocabulary verbatim.
         $expected = [
             'DOCUMENT_SIGNED',
+            'DOCUMENT_VIEWED',
             'EMAIL_BOUNCE',
             'KBA_FAILURE',
             'PACKAGE_ACTIVATE',
@@ -142,6 +143,7 @@ final class EventTypeTest extends TestCase
     }
 
     #[Test]
+    #[TestWith([EventType::DocumentViewed, true])]
     #[TestWith([EventType::DocumentSigned, true])]
     #[TestWith([EventType::SignerComplete, true])]
     #[TestWith([EventType::PackageReadyForComplete, true])]

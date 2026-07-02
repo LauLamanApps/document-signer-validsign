@@ -23,6 +23,9 @@ use LauLamanApps\DocumentSigner\ValidSign\ValidSignProvider;
  */
 enum EventType: string implements WebhookEvent
 {
+    /** Signer viewed a single document within a package. */
+    case DocumentViewed         = 'DOCUMENT_VIEWED';
+
     /** Signer completed signing a single document within a package. */
     case DocumentSigned         = 'DOCUMENT_SIGNED';
 
@@ -120,6 +123,7 @@ enum EventType: string implements WebhookEvent
     public function isProgress(): bool
     {
         return match ($this) {
+            self::DocumentViewed,
             self::DocumentSigned,
             self::SignerComplete,
             self::PackageReadyForComplete => true,

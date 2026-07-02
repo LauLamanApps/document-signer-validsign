@@ -146,6 +146,15 @@ final class ValidSignProvider implements SignatureProvider
         );
     }
 
+    public function downloadSignedDocument(string $providerEnvelopeId, string $documentId): \SplFileInfo
+    {
+        return TempFile::fromBytes(
+            bytes: $this->client->downloadSignedDocument($providerEnvelopeId, $documentId),
+            prefix: 'validsign-signed-doc-',
+            extension: 'pdf',
+        );
+    }
+
     public function downloadAudit(string $providerEnvelopeId): \SplFileInfo
     {
         return TempFile::fromBytes(

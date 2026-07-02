@@ -57,13 +57,18 @@ For every document in the envelope, this package:
 
 ## Downloads
 
-Both `downloadSigned()` and `downloadAudit()` write to a temp file and hand you
-an `\SplFileInfo` — check the extension:
+`downloadSigned()`, `downloadSignedDocument()`, and `downloadAudit()` all
+write to a temp file and hand you an `\SplFileInfo` — check the extension:
 
 ```php
 $archive = $provider->downloadSigned($packageId);
 // $archive->getExtension() === 'zip'
 // A ZIP with one signed PDF per document in the package (endpoint: /packages/{id}/documents/zip)
+
+$pdf = $provider->downloadSignedDocument($packageId, 'nda');
+// $pdf->getExtension() === 'pdf'
+// The signed PDF for a single document (endpoint: /packages/{id}/documents/{documentId})
+// $documentId is the same id you set on Document::$id when calling send().
 
 $audit = $provider->downloadAudit($packageId);
 // $audit->getExtension() === 'pdf'

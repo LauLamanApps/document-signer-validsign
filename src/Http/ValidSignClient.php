@@ -76,6 +76,14 @@ final class ValidSignClient
         return $this->requestRaw('GET', 'packages/' . rawurlencode($packageId) . '/documents/zip');
     }
 
+    public function downloadSignedDocument(string $packageId, string $documentId): string
+    {
+        return $this->requestRaw(
+            'GET',
+            'packages/' . rawurlencode($packageId) . '/documents/' . rawurlencode($documentId),
+        );
+    }
+
     public function downloadEvidenceSummary(string $packageId): string
     {
         return $this->requestRaw('GET', 'packages/' . rawurlencode($packageId) . '/evidence/summary');

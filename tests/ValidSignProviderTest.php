@@ -262,6 +262,43 @@ final class ValidSignProviderTest extends TestCase
     }
 
     #[Test]
+    public function download_signed_document_returns_the_pdf_for_a_single_document(): void
+    {
+        [$provider, $history] = $this->buildProvider([
+            new Response(200, [], '%PDF-SIGNED-NDA'),
+        ]);
+
+        $file = $provider->downloadSignedDocument('pkg-42', 'nda');
+
+        self::assertSame('pdf', $file->getExtension());
+        self::assertSame('%PDF-SIGNED-NDA', file_get_contents($file->getPathname()));
+
+        self::assertStringContainsString(
+            'packages/pkg-42/documents/nda',
+            (string) $history[0]['request']->getUri(),
+        );
+
+        @unlink($file->getPathname());
+    }
+
+    #[Test]
+    public function download_signed_document_percent_encodes_the_document_id(): void
+    {
+        // ValidSign document IDs are usually opaque UUIDs, but the caller
+        // controls Document::$id, so the client must be robust to punctuation.
+        [$provider, $history] = $this->buildProvider([
+            new Response(200, [], 'x'),
+        ]);
+
+        $provider->downloadSignedDocument('pkg 1', 'doc/with?slash');
+
+        self::assertStringContainsString(
+            'packages/pkg%201/documents/doc%2Fwith%3Fslash',
+            (string) $history[0]['request']->getUri(),
+        );
+    }
+
+    #[Test]
     public function download_audit_returns_the_evidence_summary_pdf(): void
     {
         [$provider, $history] = $this->buildProvider([
