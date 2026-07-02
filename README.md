@@ -72,6 +72,46 @@ $audit = $provider->downloadAudit($packageId);
 
 Callers own the file lifecycle — copy or `@unlink()` when done.
 
+## Webhook events
+
+`ValidSign\Webhook\EventType` is a string-backed enum covering every
+callback event ValidSign can emit — `PACKAGE_COMPLETE`, `PACKAGE_DECLINE`,
+`SIGNER_COMPLETE`, `KBA_FAILURE`, and so on. Values match ValidSign's
+vocabulary verbatim.
+
+```php
+use LauLamanApps\DocumentSigner\ValidSign\Webhook\EventType;
+use LauLamanApps\DocumentSigner\Laravel\Events\DocumentSignerWebhookReceived;
+
+public function handle(DocumentSignerWebhookReceived $event): void
+{
+    if ($event->driver !== 'validsign') {
+        return;
+    }
+
+    $type = EventType::tryFromPayload($event->payload);
+    match ($type) {
+        EventType::PackageComplete => $this->onCompleted($event->payload),
+        EventType::PackageDecline  => $this->onDeclined($event->payload),
+        EventType::KbaFailure      => $this->onKbaFailure($event->payload),
+        null                       => Log::info('unknown ValidSign event', ['payload' => $event->payload]),
+        default                    => null, // don't care about this event
+    };
+}
+```
+
+`tryFromPayload()` scans the payload for the first recognised event key
+(`name`, `event`, `type`, `eventName`, `eventType`) — ValidSign has been
+observed to key it under different names across tenants — and returns
+`null` for anything it doesn't recognise.
+
+The enum implements the SDK's
+[`WebhookEvent`](https://github.com/LauLamanApps/document-signer-sdk/blob/main/src/Webhook/WebhookEvent.php)
+interface, so listeners can also dispatch on the semantic category
+(`isCompleted()`, `isDeclined()`, `isFailure()`, `isProgress()`) without
+matching on individual cases — useful when the same handler needs to serve
+multiple providers.
+
 ## Field mapping
 
 Each SDK `FieldType` becomes a ValidSign text-tag with a default size. The
