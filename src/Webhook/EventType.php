@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace LauLamanApps\DocumentSigner\ValidSign\Webhook;
 
 use LauLamanApps\DocumentSigner\Sdk\Webhook\WebhookEvent;
-use LauLamanApps\DocumentSigner\ValidSign\ValidSignProvider;
 
 /**
  * Every callback event ValidSign can emit for a package.
@@ -86,14 +85,17 @@ enum EventType: string implements WebhookEvent
     /** A template was created. */
     case TemplateCreate         = 'TEMPLATE_CREATE';
 
+    /**
+     * A verified callback whose token ValidSign sent but this enum doesn't
+     * model. Synthetic — ValidSign never emits this value; {@see tryFromPayload()}
+     * resolves to it so callers always get a non-null event. All four `is…()`
+     * predicates are `false`; the raw body remains on the dispatched event.
+     */
+    case Unknown                = '__UNKNOWN__';
+
     public function value(): string
     {
         return $this->value;
-    }
-
-    public function provider(): string
-    {
-        return ValidSignProvider::NAME;
     }
 
     public function isCompleted(): bool
@@ -137,9 +139,12 @@ enum EventType: string implements WebhookEvent
      * tenant configuration, so we try each in turn and stop at the first
      * recognised value.
      *
+     * Always returns a case: a token that matches no known event resolves to
+     * {@see self::Unknown}, so callers never have to null-check the result.
+     *
      * @param array<string, mixed> $payload
      */
-    public static function tryFromPayload(array $payload): ?self
+    public static function tryFromPayload(array $payload): self
     {
         foreach (['name', 'event', 'type', 'eventName', 'eventType'] as $key) {
             $raw = $payload[$key] ?? null;
@@ -150,6 +155,6 @@ enum EventType: string implements WebhookEvent
                 }
             }
         }
-        return null;
+        return self::Unknown;
     }
 }

@@ -41,12 +41,14 @@ final class EventTypeTest extends TestCase
             'TEMPLATE_CREATE',
         ];
 
-        $actual = array_map(static fn (EventType $c) => $c->value, EventType::cases());
+        // Unknown is a synthetic sentinel, not part of ValidSign's vocabulary.
+        $realCases = array_filter(EventType::cases(), static fn (EventType $c) => $c !== EventType::Unknown);
+        $actual = array_map(static fn (EventType $c) => $c->value, $realCases);
 
         sort($expected);
         sort($actual);
 
-        self::assertSame($expected, $actual);
+        self::assertSame($expected, array_values($actual));
     }
 
     #[Test]
@@ -82,12 +84,21 @@ final class EventTypeTest extends TestCase
     }
 
     #[Test]
-    public function try_from_payload_returns_null_for_unknown_values(): void
+    public function try_from_payload_returns_the_unknown_case_for_unrecognised_values(): void
     {
-        self::assertNull(EventType::tryFromPayload(['name' => 'MYSTERY_EVENT']));
-        self::assertNull(EventType::tryFromPayload(['name' => '']));
-        self::assertNull(EventType::tryFromPayload([]));
-        self::assertNull(EventType::tryFromPayload(['name' => 42])); // non-string
+        self::assertSame(EventType::Unknown, EventType::tryFromPayload(['name' => 'MYSTERY_EVENT']));
+        self::assertSame(EventType::Unknown, EventType::tryFromPayload(['name' => '']));
+        self::assertSame(EventType::Unknown, EventType::tryFromPayload([]));
+        self::assertSame(EventType::Unknown, EventType::tryFromPayload(['name' => 42])); // non-string
+    }
+
+    #[Test]
+    public function the_unknown_case_is_semantically_inert(): void
+    {
+        self::assertFalse(EventType::Unknown->isCompleted());
+        self::assertFalse(EventType::Unknown->isDeclined());
+        self::assertFalse(EventType::Unknown->isFailure());
+        self::assertFalse(EventType::Unknown->isProgress());
     }
 
     #[Test]
@@ -105,7 +116,6 @@ final class EventTypeTest extends TestCase
     {
         foreach (EventType::cases() as $case) {
             self::assertInstanceOf(\LauLamanApps\DocumentSigner\Sdk\Webhook\WebhookEvent::class, $case);
-            self::assertSame('validsign', $case->provider());
             self::assertSame($case->value, $case->value());
         }
     }
