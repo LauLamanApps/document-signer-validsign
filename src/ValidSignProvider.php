@@ -8,6 +8,8 @@ use LauLamanApps\DocumentSigner\Sdk\Document\Document;
 use LauLamanApps\DocumentSigner\Sdk\Envelope\Envelope;
 use LauLamanApps\DocumentSigner\Sdk\Envelope\EnvelopeStatus;
 use LauLamanApps\DocumentSigner\Sdk\Exception\ProviderException;
+use LauLamanApps\DocumentSigner\Sdk\Exception\ProviderNotFoundException;
+use LauLamanApps\DocumentSigner\Sdk\Exception\SignedDocumentUnavailableException;
 use LauLamanApps\DocumentSigner\Sdk\Pdf\BrowsershotPdfRenderer;
 use LauLamanApps\DocumentSigner\Sdk\Pdf\PageDecoration;
 use LauLamanApps\DocumentSigner\Sdk\Pdf\PdfRenderer;
@@ -148,8 +150,24 @@ final class ValidSignProvider implements SignatureProvider
 
     public function downloadSignedDocument(string $providerEnvelopeId, string $documentId): \SplFileInfo
     {
+        // ValidSign keys documents on the caller's own Document::$id (we send it
+        // verbatim as `documents[].id`), so it maps straight onto the endpoint.
+        try {
+            $bytes = $this->client->downloadSignedDocument($providerEnvelopeId, $documentId);
+        } catch (ProviderNotFoundException $e) {
+            // 404 here means "no such document on this package (yet)" rather than
+            // "the package is gone" — surface the uniform, retryable signal so
+            // callers polling for a freshly-signed document can back off.
+            throw SignedDocumentUnavailableException::for(
+                providerName: self::NAME,
+                providerEnvelopeId: $providerEnvelopeId,
+                documentId: $documentId,
+                previous: $e,
+            );
+        }
+
         return TempFile::fromBytes(
-            bytes: $this->client->downloadSignedDocument($providerEnvelopeId, $documentId),
+            bytes: $bytes,
             prefix: 'validsign-signed-doc-',
             extension: 'pdf',
         );

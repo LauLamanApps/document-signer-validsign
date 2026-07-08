@@ -8,6 +8,7 @@ use LauLamanApps\DocumentSigner\Sdk\Document\Document;
 use LauLamanApps\DocumentSigner\Sdk\Envelope\Envelope;
 use LauLamanApps\DocumentSigner\Sdk\Envelope\EnvelopeStatus;
 use LauLamanApps\DocumentSigner\Sdk\Exception\ProviderException;
+use LauLamanApps\DocumentSigner\Sdk\Exception\SignedDocumentUnavailableException;
 use LauLamanApps\DocumentSigner\Sdk\Pdf\PdfRenderer;
 use LauLamanApps\DocumentSigner\Sdk\Signer\Signer;
 use LauLamanApps\DocumentSigner\Sdk\Signer\SigningOrder;
@@ -279,6 +280,24 @@ final class ValidSignProviderTest extends TestCase
         );
 
         @unlink($file->getPathname());
+    }
+
+    #[Test]
+    public function download_signed_document_translates_a_404_to_a_retryable_unavailable_exception(): void
+    {
+        // The document isn't finalized yet (or the id is unknown): ValidSign 404s.
+        [$provider] = $this->buildProvider([
+            new Response(404, [], json_encode(['messages' => ['Document not found']])),
+        ]);
+
+        try {
+            $provider->downloadSignedDocument('pkg-42', 'nda');
+            self::fail('Expected SignedDocumentUnavailableException.');
+        } catch (SignedDocumentUnavailableException $e) {
+            self::assertTrue($e->isRetryable());
+            self::assertSame('pkg-42', $e->providerEnvelopeId);
+            self::assertStringContainsString('nda', $e->getMessage());
+        }
     }
 
     #[Test]
